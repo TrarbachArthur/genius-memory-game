@@ -1,9 +1,8 @@
 #include <Arduino.h>
+#include <stdlib.h>
 #include <time.h>
 
-/*EzButton - Olhar biblioteca pra tentar refatorar essa obra de arte*/
-
-#define offset_leds 
+/*EzButton - Olhar biblioteca pra tentar refatorar essa obra de arte*/ 
 
 #define led_1 10
 #define led_2 11
@@ -37,9 +36,8 @@ bool acertou = false;
 
 void gera_aleatorio() {
 	atual_leds++;
-    for (int i = atual_leds; i < atual_leds+1; i++) {
-        leds_aleatorio[i] = 10 + (rand() % 4);
-    }
+    randomSeed(analogRead(A0));
+    leds_aleatorio[atual_leds] = 10 + (random(300000000) % 4);
 }
 /*
 int mapeia_leds(int x) {
@@ -54,7 +52,7 @@ int mapeia_leds(int x) {
 void liga_led_aleatorio() {
     int led_ligar;
 
-    for (int i = 0; i < atual_leds; i++) {
+    for (int i = 0; i <= atual_leds; i++) {
         led_ligar = leds_aleatorio[i];
 
         digitalWrite(led_ligar, HIGH);
@@ -103,9 +101,7 @@ void dificuldade1_bt() {
 		Serial.println("Apertou botao da dificuldade 1!");
 		dificuldade = 1;
 		delay_dificuldade = 300;
-		max_leds = 7;
-
-		start();
+		max_leds = 5;
 	}
 }
 
@@ -113,11 +109,19 @@ void dificuldade2_bt() {
 	if (!dificuldade) {
 		Serial.println("Apertou botao da dificuldade 2!");
 		dificuldade = 2;
-		delay_dificuldade = 100;
-		max_leds = 12;
-
-		start();
+		delay_dificuldade = 120;
+		max_leds = 8;
 	}
+}
+
+bool conferir_botoes_atuais() {
+    for (int i = 0; i <= atual_leds && i < botao_atual; i++) {
+        if (leds_aleatorio[i] != botoes_apertados[i]) {
+            perdeu = true;
+            return false;
+        }
+    }
+    return true;
 }
 
 void bt1() {
@@ -125,6 +129,10 @@ void bt1() {
 	pisca_led(led_1);
     botoes_apertados[botao_atual] = led_1;
     botao_atual += 1;
+
+    if (!conferir_botoes_atuais()) {
+        perdeu = true;
+    }
 }
 
 void bt2() {
@@ -132,6 +140,10 @@ void bt2() {
 	pisca_led(led_2);
     botoes_apertados[botao_atual] = led_2;
     botao_atual += 1;
+
+    if (!conferir_botoes_atuais()) {
+        perdeu = true;
+    }
 }
 
 void bt3() {
@@ -139,6 +151,10 @@ void bt3() {
 	pisca_led(led_3);
     botoes_apertados[botao_atual] = led_3;
     botao_atual += 1;
+
+    if (!conferir_botoes_atuais()) {
+        perdeu = true;
+    }
 }
 
 void bt4() {
@@ -146,17 +162,13 @@ void bt4() {
 	pisca_led(led_4);
     botoes_apertados[botao_atual] = led_4;
     botao_atual += 1;
-}
 
-bool conferir_botoes_atuais() {
-    for (int i = 0; i < atual_leds; i++) {
-        if (leds_aleatorio[i] != botoes_apertados[i]) return false;
+    if (!conferir_botoes_atuais()) {
+        perdeu = true;
     }
-    return true;
 }
 
 void encerra_partida() {
-    srand(time(NULL));
     dificuldade = 0;
     delay_dificuldade = 300;
     max_leds = 0;
@@ -171,8 +183,6 @@ void encerra_partida() {
 
 void setup() {
     Serial.begin(9600);
-
-    srand(time(NULL));
 
 	pinMode(dificuldade1_pin, INPUT_PULLUP);
     pinMode(dificuldade2_pin, INPUT_PULLUP);
@@ -212,45 +222,41 @@ void loop() {
 		delay(delay_padrao);
 	}
 
-    if (digitalRead(bt_1_pin) == LOW) {
-        bt1();
-    }
+    botao_atual = 0;
+    gera_aleatorio();
+    delay(500);
+    liga_led_aleatorio();
+    ta_jogando = true;
 
-    if (digitalRead(bt_2_pin) == LOW) {
-        bt2();
-    }
-
-    if (digitalRead(bt_3_pin) == LOW) {
-        bt3();
-    }
-
-    if (digitalRead(bt_4_pin) == LOW) {
-        bt4();
-    }
-
-    if (ta_jogando) {
-        if (!conferir_botoes_atuais()) {
-            perdeu = true;
-        }
-        if (botao_atual == atual_leds) {
-            bool resultado = conferir_botoes_atuais();
-            if (resultado) {
-                ta_jogando = false;
-                acertou = true;
-            } else {
-                ta_jogando = false;
-                perdeu = true;
-            }
+    while (botao_atual <= atual_leds) {
+        if (digitalRead(bt_1_pin) == LOW) {
+            bt1();
         }
 
-        start();
+        if (digitalRead(bt_2_pin) == LOW) {
+            bt2();
+        }
+
+        if (digitalRead(bt_3_pin) == LOW) {
+            bt3();
+        }
+
+        if (digitalRead(bt_4_pin) == LOW) {
+            bt4();
+        }
+        if (perdeu) break;
+    }
+
+    if (botao_atual == atual_leds+1) {
+        if (conferir_botoes_atuais()) {
+            acertou = true;
+        }
         // ta_jogando = false quando perder ou ganhar
         // acertou = true
         // perdeu = true
-        return;
     }
 
-    if (acertou && (atual_leds == max_leds)) {
+    if (acertou && (atual_leds == max_leds-1)) {
         for (int i = 0; i < 5; i++) {
             rodar();
         }
@@ -280,13 +286,5 @@ void loop() {
         }
         encerra_partida();
         delay(1500);
-    }
-
-    if (inicia_jogo) {
-        botao_atual = 0;
-        gera_aleatorio();
-        liga_led_aleatorio();
-        delay(1000);
-        ta_jogando = true;
     }
 }
